@@ -20,5 +20,12 @@ services:
       timeout: 5s
       retries: 5
 
+    networks:
+      - deployment_app-network
+
 volumes:
   redis-data:
+
+networks:
+  deployment_app-network:
+    external: true
