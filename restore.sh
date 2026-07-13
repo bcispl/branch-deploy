@@ -15,9 +15,17 @@ fi
 
 echo "Restoring PostgreSQL backup: $BACKUP_FILE"
 
-pg_restore \
-  -U "$POSTGRES_USER" \
-  -d "$POSTGRES_DB" \
-  "$BACKUP_FILE"
+# Copy backup into the postgres container
+docker cp "$BACKUP_FILE" postgres:/tmp/restore.backup
+
+# Restore inside the postgres container
+docker exec postgres pg_restore \
+    --clean \
+    --if-exists \
+    --no-owner \
+    --no-privileges \
+    -U "$POSTGRES_USER" \
+    -d "$POSTGRES_DB" \
+    /tmp/restore.backup
 
 echo "Restore completed successfully."
