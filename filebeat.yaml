@@ -4,22 +4,28 @@ services:
     container_name: elasticsearch
     restart: unless-stopped
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
     ports:
       - "9200:9200"
-    networks:
-      - deployment_app-network
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - deployment_app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.18.2
     container_name: kibana
     restart: unless-stopped
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     ports:
@@ -33,37 +39,13 @@ services:
     user: root
     restart: unless-stopped
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cat >/usr/share/filebeat/filebeat.yml <<'EOF'
-        filebeat.inputs:
-          - type: filestream
-            id: docker-logs
-            enabled: true
-            paths:
-              - /var/lib/docker/containers/*/*.log
-
-        processors:
-          - add_docker_metadata:
-              host: unix:///var/run/docker.sock
-
-        output.elasticsearch:
-          hosts:
-            - http://elasticsearch:9200
-
-        setup.kibana:
-          host: http://kibana:5601
-
-        logging.level: info
-        EOF
-
-        exec filebeat -e --strict.perms=false
+    command: ["filebeat","-e","--strict.perms=false"]
 
     volumes:
+      - ./filebeat-config.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
